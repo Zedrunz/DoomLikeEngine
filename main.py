@@ -1,148 +1,248 @@
 import arcade
-from pyglet.event import EVENT_HANDLE_STATE
 import math
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-WINDOW_NAME = 'тест'
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 
 MAP = [
-    "########",
-    "#.......",
-    "#.......",
-    "#.......",
-    "#......#",
-    "#......#",
-    "########",
+    "########........",
+    "#......#........",
+    "#...............",
+    "#....##.........",
+    "#......#........",
+    "#......#........",
+    "########........",
 ]
 
-BLOCK = 50
+TILE = 50
 
 
-class MainGame(arcade.Window):
+class Game(arcade.Window):
+
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_NAME)
+        super().__init__(
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+            "Raycaster"
+        )
 
-        self.player_x = 140
-        self.player_y = 140
+        self.player_x = 100
+        self.player_y = 100
         self.player_angle = 0
+
+        self.move_forward = False
+        self.move_back = False
+        self.move_left = False
+        self.move_right = False
 
         self.set_exclusive_mouse(True)
 
-        self.forward_pressed = False
-        self.backward_pressed = False
-        self.left_pressed = False
-        self.right_pressed = False
+    def is_wall(self, x, y):
+        mx = int(x // TILE)
+        my = int(y // TILE)
+
+        if (
+            mx < 0
+            or my < 0
+            or my >= len(MAP)
+            or mx >= len(MAP[0])
+        ):
+            return True
+
+        return MAP[my][mx] == "#"
+
+    def cast_ray(self, angle):
+
+        ray_x = self.player_x
+        ray_y = self.player_y
+
+        step = 4
+        distance = 0
+
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+
+        while distance < 1000:
+
+            ray_x += cos_a * step
+            ray_y += sin_a * step
+
+            distance += step
+
+            if self.is_wall(ray_x, ray_y):
+                return distance
+
+        return 1000
 
     def on_draw(self):
-        self.clear()
-        for i, row in enumerate(MAP):
-            for j, elem in enumerate(row):
-                if elem == '#':
-                    arcade.draw_lbwh_rectangle_filled(
-                        j * BLOCK,
-                        i * BLOCK,
-                        BLOCK,
-                        BLOCK,
-                        (100, 100, 100)
-                    )
 
-        # игрок
-        arcade.draw_lbwh_rectangle_filled(
-            self.player_x,
-            self.player_y,
-            BLOCK / 2,
-            BLOCK / 2,
-            (250, 0, 0)
+        self.clear()
+
+        arcade.draw_rect_filled(
+            arcade.LBWH(
+                0,
+                SCREEN_HEIGHT // 2,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT // 2
+            ),
+            (70, 70, 70)
         )
+
+        arcade.draw_rect_filled(
+            arcade.LBWH(
+                0,
+                0,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT // 2
+            ),
+            (30, 30, 30)
+        )
+
         fov = math.pi / 3
-        num_rays = 60
+
+        num_rays = 400
+
+        strip_width = SCREEN_WIDTH / num_rays
 
         for ray in range(num_rays):
 
-            ray_angle = self.player_angle - fov / 2 + (ray / num_rays) * fov
-
-            ray_x = self.player_x
-            ray_y = self.player_y
-
-            distance = 0
-
-            while distance < 800:
-
-                ray_x += math.cos(ray_angle)
-                ray_y += math.sin(ray_angle)
-                distance += 1
-
-                map_x = int(ray_x // BLOCK)
-                map_y = int(ray_y // BLOCK)
-
-                if (
-                        map_x < 0 or map_x >= len(MAP[0]) or
-                        map_y < 0 or map_y >= len(MAP)
-                ):
-                    break
-
-                if MAP[map_y][map_x] == "#":
-                    break
-
-            arcade.draw_line(
-                self.player_x,
-                self.player_y,
-                ray_x,
-                ray_y,
-                arcade.color.YELLOW,
-                1
+            ray_angle = (
+                self.player_angle
+                - fov / 2
+                + ray * fov / num_rays
             )
 
-    def on_update(self, delta_time: float):
+            distance = self.cast_ray(ray_angle)
 
-        move_speed = 200 * delta_time
-        forward_x = math.cos(self.player_angle)
-        forward_y = math.sin(self.player_angle)
+            distance *= math.cos(
+                ray_angle - self.player_angle
+            )
+
+            if distance < 1:
+                distance = 1
+
+            wall_height = (
+                TILE * SCREEN_HEIGHT
+            ) / distance
+
+            brightness = max(
+                30,
+                min(
+                    255,
+                    int(255 - distance * 0.35)
+                )
+            )
+
+            color = (
+                brightness,
+                brightness,
+                brightness
+            )
+
+            x = ray * strip_width
+
+            arcade.draw_rect_filled(
+                arcade.LBWH(
+                    x,
+                    SCREEN_HEIGHT / 2
+                    - wall_height / 2,
+                    strip_width + 1,
+                    wall_height
+                ),
+                color
+            )
+
+    def on_update(self, delta_time):
+
+        speed = 250 * delta_time
+
+        forward_x = math.cos(
+            self.player_angle
+        )
+
+        forward_y = math.sin(
+            self.player_angle
+        )
+
         strafe_x = -forward_y
         strafe_y = forward_x
 
-        if self.forward_pressed:
-            self.player_x += forward_x * move_speed
-            self.player_y += forward_y * move_speed
+        new_x = self.player_x
+        new_y = self.player_y
 
-        if self.backward_pressed:
-            self.player_x -= forward_x * move_speed
-            self.player_y -= forward_y * move_speed
+        if self.move_forward:
+            new_x += forward_x * speed
+            new_y += forward_y * speed
 
-        if self.left_pressed:
-            self.player_x += strafe_x * move_speed
-            self.player_y += strafe_y * move_speed
+        if self.move_back:
+            new_x -= forward_x * speed
+            new_y -= forward_y * speed
 
-        if self.right_pressed:
-            self.player_x -= strafe_x * move_speed
-            self.player_y -= strafe_y * move_speed
+        if self.move_left:
+            new_x += strafe_x * speed
+            new_y += strafe_y * speed
 
-    def on_key_press(self, key, modifiers):
-        if key == arcade.key.W:
-            self.forward_pressed = True
-        if key == arcade.key.S:
-            self.backward_pressed = True
-        if key == arcade.key.A:
-            self.left_pressed = True
-        if key == arcade.key.D:
-            self.right_pressed = True
+        if self.move_right:
+            new_x -= strafe_x * speed
+            new_y -= strafe_y * speed
 
-    def on_key_release(self, key, modifiers):
-        if key == arcade.key.W:
-            self.forward_pressed = False
-        if key == arcade.key.S:
-            self.backward_pressed = False
-        if key == arcade.key.A:
-            self.left_pressed = False
-        if key == arcade.key.D:
-            self.right_pressed = False
+        if not self.is_wall(
+            new_x,
+            self.player_y
+        ):
+            self.player_x = new_x
 
-    def on_mouse_motion(self, x: int, y: int, dx: int, dy: int) -> EVENT_HANDLE_STATE:
-        self.player_angle += -dx * 0.002
+        if not self.is_wall(
+            self.player_x,
+            new_y
+        ):
+            self.player_y = new_y
+
+    def on_mouse_motion(
+        self,
+        x,
+        y,
+        dx,
+        dy
+    ):
+        self.player_angle -= dx * 0.003
         self.player_angle %= math.tau
+
+    def on_key_press(
+        self,
+        key,
+        modifiers
+    ):
+        if key == arcade.key.W:
+            self.move_forward = True
+
+        elif key == arcade.key.S:
+            self.move_back = True
+
+        elif key == arcade.key.A:
+            self.move_left = True
+
+        elif key == arcade.key.D:
+            self.move_right = True
+
+    def on_key_release(
+        self,
+        key,
+        modifiers
+    ):
+        if key == arcade.key.W:
+            self.move_forward = False
+
+        elif key == arcade.key.S:
+            self.move_back = False
+
+        elif key == arcade.key.A:
+            self.move_left = False
+
+        elif key == arcade.key.D:
+            self.move_right = False
 
 
 if __name__ == "__main__":
-    game = MainGame()
-    game.run()
+    Game()
+    arcade.run()
