@@ -6,13 +6,13 @@ SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 
 MAP = [
-    "########........",
-    "#......#........",
-    "#...............",
-    "#....###........",
-    "#......#........",
-    "#......#........",
-    "########........",
+    "################",
+    "#......#.......#",
+    "#..............#",
+    "#....###...#...#",
+    "#......#.......#",
+    "#......#.......#",
+    "################",
 ]
 
 TILE = 64
@@ -26,11 +26,31 @@ class Game(arcade.Window):
             SCREEN_HEIGHT,
             "Raycaster"
         )
-
+        self.cigar_list = arcade.SpriteList()
+        self.cigar_sprite = arcade.Sprite("textures/cigar_1.png", scale=5)
+        self.cigar_sprite.center_x = 800
+        self.cigar_sprite.center_y = 30
+        self.cigar_sprite.angle = 30
+        self.cigar_list.append(self.cigar_sprite)
+        self.cigar_textures = [
+            arcade.load_texture("textures/cigar_1.png"),
+            arcade.load_texture("textures/cigar_2.png"),
+            arcade.load_texture("textures/cigar_3.png")
+        ]
+        self.smoke_sprite = arcade.Sprite("textures/smoke.png", scale=5)
+        self.smoke_sprite.center_x = 800
+        self.smoke_sprite.center_y = 30
+    
+        self.smoke_list = arcade.SpriteList()
+        self.smoke_list.append(self.smoke_sprite)
+        self.smoke = False
+        self.current_frame = 0  
+        self.is_animating = False
+        self.animation_time = 0.0
+        self.frame_duration = 2
         self.player_x = 100
         self.player_y = 100
         self.player_angle = 0
-
         self.move_forward = False
         self.move_back = False
         self.move_left = False
@@ -54,6 +74,12 @@ class Game(arcade.Window):
 
         return MAP[my][mx] == "#"
 
+    def cigar_animation(self):
+        if self.smoke:
+            self.smoke_list.draw()
+        self.cigar_list.draw()
+
+    
     def cast_ray_dda(self, angle):
         ray_x = self.player_x
         ray_y = self.player_y
@@ -112,7 +138,6 @@ class Game(arcade.Window):
     def on_draw(self):
 
         self.clear()
-
         arcade.draw_rect_filled(
             arcade.LBWH(
                 0,
@@ -171,6 +196,9 @@ class Game(arcade.Window):
                 ),
                 color=color
             )
+        if self.is_animating:
+            self.cigar_animation()
+
 
     def on_update(self, delta_time):
 
@@ -217,6 +245,21 @@ class Game(arcade.Window):
                 new_y
         ):
             self.player_y = new_y
+        if self.is_animating:
+            self.smoke = False
+            self.animation_time += delta_time
+            
+            if self.animation_time >= self.frame_duration:
+                self.animation_time = 0.0
+                self.current_frame += 1
+                self.smoke = True
+                
+                if self.current_frame >= len(self.cigar_textures):
+                    self.is_animating = False 
+                    self.current_frame = 0  
+                    self.smoke = False
+                    
+                self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
 
     def on_mouse_motion(self, x, y, dx, dy):
         self.player_angle += dx * 0.003
@@ -238,6 +281,12 @@ class Game(arcade.Window):
 
         elif key == arcade.key.D:
             self.move_right = True
+        elif key == arcade.key.F:
+            if not self.is_animating:
+                self.is_animating = True
+                self.current_frame = 0
+                self.animation_time = 0.0
+                self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
 
     def on_key_release(
             self,
