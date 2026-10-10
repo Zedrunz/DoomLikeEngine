@@ -1,6 +1,7 @@
 import arcade
 import math
 from arcade.types import Color
+from random import randint
 
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
@@ -65,12 +66,24 @@ class Game(arcade.Window):
         self.gun_shot_animation_speed = 0.2
         self.smoke_sprite.center_x = 800
         self.smoke_sprite.center_y = 30
+        self.flame_list_textures = [
+                        arcade.load_texture("guns/mauser_shot/flame_1-Photoroom.png"),
+                        arcade.load_texture("guns/mauser_shot/flame_2-Photoroom.png"),
+                        arcade.load_texture("guns/mauser_shot/flame_a_1-Photoroom.png"),
+                        arcade.load_texture("guns/mauser_shot/flame_a_2-Photoroom.png")
+                                ]
+        self.flame_sprite = arcade.Sprite("guns/mauser_shot/flame_1-Photoroom.png", scale=2)
+        self.flame_sprite.center_x = 640
+        self.flame_sprite.center_y = 330
         self.gun_list.append(self.gun_sprite)
         self.idle_gun = True
         self.is_shot = False
     
         self.smoke_list = arcade.SpriteList()
         self.smoke_list.append(self.smoke_sprite)
+        self.flame_list = arcade.SpriteList()
+        self.flame_list.append(self.flame_sprite)
+        self.flame = False
         self.smoke = False
         self.current_frame = 0  
         self.is_animating = False
@@ -107,6 +120,8 @@ class Game(arcade.Window):
             self.smoke_list.draw()
         self.cigar_list.draw()
     def gun_animation(self):
+        if self.flame:
+                    self.flame_list.draw()
         if self.idle_gun:
             self.gun_list.draw()
 
@@ -299,6 +314,16 @@ class Game(arcade.Window):
             self.gun_shot_animation_timer += delta_time
             if self.gun_shot_animation_timer >= self.gun_shot_animation_speed:
                 if self.gun_shot_cur_text != len(self.gun_shot_textures):
+                    a = randint(0, 1)
+                    b = randint(2, 3)
+                    if self.gun_shot_cur_text == 0:
+                        self.flame = True
+                        self.flame_sprite.texture = self.flame_list_textures[a]
+                    elif self.gun_shot_cur_text == 1:
+                        self.flame = True
+                        self.flame_sprite.texture = self.flame_list_textures[b]
+                    else:
+                        self.flame = False
                     self.gun_shot_animation_timer = 0
                     self.gun_cur_text = (self.gun_shot_cur_text)
                     self.gun_sprite.texture = self.gun_shot_textures[self.gun_shot_cur_text]
