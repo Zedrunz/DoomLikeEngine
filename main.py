@@ -50,6 +50,7 @@ class Game(arcade.Window):
                     arcade.load_texture("guns/mauser/idle_4-Photoroom.png")
                 ]
         self.gun_shot_textures = [
+                            arcade.load_texture('guns/mauser/shot_0-Photoroom.png'),
                             arcade.load_texture("guns/mauser/shot_1-Photoroom.png"),
                             arcade.load_texture("guns/mauser/shot_2-Photoroom.png"),
                             arcade.load_texture("guns/mauser/shot_3-Photoroom.png"),
@@ -73,8 +74,8 @@ class Game(arcade.Window):
                         arcade.load_texture("guns/mauser_shot/flame_a_2-Photoroom.png")
                                 ]
         self.flame_sprite = arcade.Sprite("guns/mauser_shot/flame_1-Photoroom.png", scale=2)
-        self.flame_sprite.center_x = 640
-        self.flame_sprite.center_y = 330
+        self.flame_sprite.center_x = 625
+        self.flame_sprite.center_y = 230
         self.gun_list.append(self.gun_sprite)
         self.idle_gun = True
         self.is_shot = False
