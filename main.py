@@ -1,148 +1,435 @@
 import arcade
-from pyglet.event import EVENT_HANDLE_STATE
 import math
+from arcade.types import Color
+from random import randint
 
-SCREEN_WIDTH = 800
-SCREEN_HEIGHT = 600
-WINDOW_NAME = 'тест'
+SCREEN_WIDTH = 1280
+SCREEN_HEIGHT = 720
 
 MAP = [
-    "########",
-    "#.......",
-    "#.......",
-    "#.......",
-    "#......#",
-    "#......#",
-    "########",
+    "################",
+    "#......#.......#",
+    "#..............#",
+    "#....###...#...#",
+    "#......#.......#",
+    "#......#.......#",
+    "################",
 ]
 
-BLOCK = 50
+TILE = 64
 
 
-class MainGame(arcade.Window):
+class Game(arcade.Window):
+
     def __init__(self):
-        super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_NAME)
-
-        self.player_x = 140
-        self.player_y = 140
+        super().__init__(
+            SCREEN_WIDTH,
+            SCREEN_HEIGHT,
+            "Raycaster"
+        )
+        self.gun_shot_animation_timer = 0
+        self.cigar_list = arcade.SpriteList()
+        self.cigar_sprite = arcade.Sprite("textures/cigar_1.png", scale=5)
+        self.cigar_sprite.center_x = 900
+        self.cigar_sprite.center_y = 30
+        self.cigar_sprite.angle = 30
+        self.cigar_list.append(self.cigar_sprite)
+        self.cigar_textures = [
+            arcade.load_texture("textures/cigar_1.png"),
+            arcade.load_texture("textures/cigar_2.png"),
+            arcade.load_texture("textures/cigar_3.png")
+        ]
+        self.gun_list = arcade.SpriteList()
+        self.gun_sprite = arcade.Sprite(
+        "guns/mauser/idle_1-Photoroom.png", scale=0.3
+        )
+        self.gun_textures = [
+                    arcade.load_texture("guns/mauser/idle_1-Photoroom.png"),
+                    arcade.load_texture("guns/mauser/idle_2-Photoroom.png"),
+                    arcade.load_texture("guns/mauser/idle_3-Photoroom.png"),
+                    arcade.load_texture("guns/mauser/idle_4-Photoroom.png")
+                ]
+        self.gun_shot_textures = [
+                            arcade.load_texture('guns/mauser/shot_0-Photoroom.png'),
+                            arcade.load_texture("guns/mauser/shot_1-Photoroom.png"),
+                            arcade.load_texture("guns/mauser/shot_2-Photoroom.png"),
+                            arcade.load_texture("guns/mauser/shot_3-Photoroom.png"),
+                            arcade.load_texture("guns/mauser/shot_4-Photoroom.png")
+                        ]
+        self.gun_sprite.texture = self.gun_textures[0]
+        self.smoke_sprite = arcade.Sprite("textures/smoke.png", scale=5)
+        self.gun_sprite.center_x = 640
+        self.gun_sprite.center_y = 300
+        self.gun_cur_text = 0
+        self.gun_shot_cur_text = 0
+        self.gun_animation_timer = 0
+        self.gun_animation_speed = 0.3
+        self.gun_shot_animation_speed = 0.2
+        self.smoke_sprite.center_x = 800
+        self.smoke_sprite.center_y = 30
+        self.flame_list_textures = [
+                        arcade.load_texture("guns/mauser_shot/flame_1-Photoroom.png"),
+                        arcade.load_texture("guns/mauser_shot/flame_2-Photoroom.png"),
+                        arcade.load_texture("guns/mauser_shot/flame_a_1-Photoroom.png"),
+                        arcade.load_texture("guns/mauser_shot/flame_a_2-Photoroom.png")
+                                ]
+        self.flame_sprite = arcade.Sprite("guns/mauser_shot/flame_1-Photoroom.png", scale=2)
+        self.flame_sprite.center_x = 625
+        self.flame_sprite.center_y = 230
+        self.gun_list.append(self.gun_sprite)
+        self.idle_gun = True
+        self.is_shot = False
+        self.gun_reload_textures = [
+                                    arcade.load_texture('guns/mauser/re_1.png'),
+                                    arcade.load_texture("guns/mauser/re_2.png"),
+                                    arcade.load_texture("guns/mauser/re_3.png"),
+                                    arcade.load_texture("guns/mauser/re_4.png"),
+                                    arcade.load_texture("guns/mauser/re_5.png"),
+                                    arcade.load_texture("guns/mauser/re_6.png"),
+                                    arcade.load_texture("guns/mauser/re_1.png")
+                                ]
+        self.reload = False
+        self.gun_reload_cur_text = 0
+        self.gun_reload_animation_timer = 0
+        self.gun_reload_animation_speed = 0.3
+        self.reload_text_gun = 0
+        self.smoke_list = arcade.SpriteList()
+        self.smoke_list.append(self.smoke_sprite)
+        self.flame_list = arcade.SpriteList()
+        self.flame_list.append(self.flame_sprite)
+        self.flame = False
+        self.smoke = False
+        self.current_frame = 0  
+        self.is_animating = False
+        self.animation_time = 0.0
+        self.frame_duration = 2
+        self.player_x = 100
+        self.player_y = 100
         self.player_angle = 0
+        self.move_forward = False
+        self.move_back = False
+        self.move_left = False
+        self.move_right = False
 
         self.set_exclusive_mouse(True)
+        self.wall_texture = arcade.load_texture("textures/wall.png")
+        self.wall_texture_size = 64
 
-        self.forward_pressed = False
-        self.backward_pressed = False
-        self.left_pressed = False
-        self.right_pressed = False
+    def is_wall(self, x, y):
+        mx = int(x // TILE)
+        my = int(y // TILE)
+
+        if (
+                mx < 0
+                or my < 0
+                or my >= len(MAP)
+                or mx >= len(MAP[0])
+        ):
+            return True
+
+        return MAP[my][mx] == "#"
+
+    def cigar_animation(self):
+        if self.smoke:
+            self.smoke_list.draw()
+        self.cigar_list.draw()
+    def gun_animation(self):
+        if self.flame:
+                    self.flame_list.draw()
+        if self.idle_gun:
+            self.gun_list.draw()
+
+    
+    def cast_ray_dda(self, angle):
+        ray_x = self.player_x
+        ray_y = self.player_y
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+        map_x = int(ray_x // TILE)
+        map_y = int(ray_y // TILE)
+        delta_dist_x = abs(1 / cos_a) if cos_a != 0 else 1e30
+        delta_dist_y = abs(1 / sin_a) if sin_a != 0 else 1e30
+        if cos_a < 0:
+            step_x = -1
+            side_dist_x = (ray_x - map_x * TILE) * delta_dist_x / TILE
+        else:
+            step_x = 1
+            side_dist_x = ((map_x + 1) * TILE - ray_x) * delta_dist_x / TILE
+
+        if sin_a < 0:
+            step_y = -1
+            side_dist_y = (ray_y - map_y * TILE) * delta_dist_y / TILE
+        else:
+            step_y = 1
+            side_dist_y = ((map_y + 1) * TILE - ray_y) * delta_dist_y / TILE
+
+        hit = False
+        side = 0
+
+        while not hit:
+            if side_dist_x < side_dist_y:
+                side_dist_x += delta_dist_x
+                map_x += step_x
+                side = 0
+            else:
+                side_dist_y += delta_dist_y
+                map_y += step_y
+                side = 1
+            if map_x < 0 or map_y < 0 or map_y >= len(MAP) or map_x >= len(MAP[0]):
+                hit = True
+                break
+
+            if MAP[map_y][map_x] == "#":
+                hit = True
+        if side == 0:
+            distance = (side_dist_x - delta_dist_x) * TILE
+        else:
+            distance = (side_dist_y - delta_dist_y) * TILE
+        if side == 0:
+            wall_x = ray_y + distance * sin_a
+        else:
+            wall_x = ray_x + distance * cos_a
+
+        wall_x %= TILE
+        tex_x = int(wall_x)
+
+        return distance, side, tex_x
 
     def on_draw(self):
-        self.clear()
-        for i, row in enumerate(MAP):
-            for j, elem in enumerate(row):
-                if elem == '#':
-                    arcade.draw_lbwh_rectangle_filled(
-                        j * BLOCK,
-                        i * BLOCK,
-                        BLOCK,
-                        BLOCK,
-                        (100, 100, 100)
-                    )
 
-        # игрок
-        arcade.draw_lbwh_rectangle_filled(
-            self.player_x,
-            self.player_y,
-            BLOCK / 2,
-            BLOCK / 2,
-            (250, 0, 0)
+        self.clear()
+        arcade.draw_rect_filled(
+            arcade.LBWH(
+                0,
+                SCREEN_HEIGHT // 2,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT // 2
+            ),
+            (70, 70, 70)
         )
+
+        arcade.draw_rect_filled(
+            arcade.LBWH(
+                0,
+                0,
+                SCREEN_WIDTH,
+                SCREEN_HEIGHT // 2
+            ),
+            (30, 30, 30)
+        )
+
         fov = math.pi / 3
-        num_rays = 60
+        num_rays = 400
+        strip_width = SCREEN_WIDTH / num_rays
 
         for ray in range(num_rays):
 
-            ray_angle = self.player_angle - fov / 2 + (ray / num_rays) * fov
-
-            ray_x = self.player_x
-            ray_y = self.player_y
-
-            distance = 0
-
-            while distance < 800:
-
-                ray_x += math.cos(ray_angle)
-                ray_y += math.sin(ray_angle)
-                distance += 1
-
-                map_x = int(ray_x // BLOCK)
-                map_y = int(ray_y // BLOCK)
-
-                if (
-                        map_x < 0 or map_x >= len(MAP[0]) or
-                        map_y < 0 or map_y >= len(MAP)
-                ):
-                    break
-
-                if MAP[map_y][map_x] == "#":
-                    break
-
-            arcade.draw_line(
-                self.player_x,
-                self.player_y,
-                ray_x,
-                ray_y,
-                arcade.color.YELLOW,
-                1
+            ray_angle = (
+                    self.player_angle
+                    - fov / 2
+                    + ray * fov / num_rays
             )
 
-    def on_update(self, delta_time: float):
+            distance, side, tex_x = self.cast_ray_dda(ray_angle)
 
-        move_speed = 200 * delta_time
-        forward_x = math.cos(self.player_angle)
-        forward_y = math.sin(self.player_angle)
+            if distance < 0.1:
+                distance = 0.1
+
+            wall_height = (
+                                  TILE * SCREEN_HEIGHT
+                          ) / distance
+
+            base_brightness = max(30, min(255, int(255 - distance * 0.35)))
+            if side == 1:
+                base_brightness = int(base_brightness * 0.85)
+            color = Color(base_brightness, base_brightness, base_brightness, 255)
+
+            x = ray * strip_width
+            y = SCREEN_HEIGHT / 2 - wall_height / 2
+            arcade.draw_texture_rect(
+                self.wall_texture,
+                arcade.LBWH(
+                    x,
+                    y,
+                    strip_width + 1,
+                    wall_height
+                ),
+                color=color
+            )
+    
+        self.gun_animation()
+        
+        if self.is_animating:
+            self.cigar_animation()
+
+
+
+    def on_update(self, delta_time):
+
+        speed = 250 * delta_time
+
+        forward_x = math.cos(
+            self.player_angle
+        )
+
+        forward_y = math.sin(
+            self.player_angle
+        )
+
         strafe_x = -forward_y
         strafe_y = forward_x
 
-        if self.forward_pressed:
-            self.player_x += forward_x * move_speed
-            self.player_y += forward_y * move_speed
+        new_x = self.player_x
+        new_y = self.player_y
 
-        if self.backward_pressed:
-            self.player_x -= forward_x * move_speed
-            self.player_y -= forward_y * move_speed
+        if self.move_forward:
+            new_x += forward_x * speed
+            new_y += forward_y * speed
 
-        if self.left_pressed:
-            self.player_x += strafe_x * move_speed
-            self.player_y += strafe_y * move_speed
+        if self.move_back:
+            new_x -= forward_x * speed
+            new_y -= forward_y * speed
 
-        if self.right_pressed:
-            self.player_x -= strafe_x * move_speed
-            self.player_y -= strafe_y * move_speed
+        if self.move_left:
+            new_x -= strafe_x * speed
+            new_y -= strafe_y * speed
 
-    def on_key_press(self, key, modifiers):
-        if key == arcade.key.W:
-            self.forward_pressed = True
-        if key == arcade.key.S:
-            self.backward_pressed = True
-        if key == arcade.key.A:
-            self.left_pressed = True
-        if key == arcade.key.D:
-            self.right_pressed = True
+        if self.move_right:
+            new_x += strafe_x * speed
+            new_y += strafe_y * speed
 
-    def on_key_release(self, key, modifiers):
-        if key == arcade.key.W:
-            self.forward_pressed = False
-        if key == arcade.key.S:
-            self.backward_pressed = False
-        if key == arcade.key.A:
-            self.left_pressed = False
-        if key == arcade.key.D:
-            self.right_pressed = False
+        if not self.is_wall(
+                new_x,
+                self.player_y
+        ):
+            self.player_x = new_x
 
-    def on_mouse_motion(self, x: int, y: int, dx: int, dy: int) -> EVENT_HANDLE_STATE:
-        self.player_angle += -dx * 0.002
+        if not self.is_wall(
+                self.player_x,
+                new_y
+        ):
+            self.player_y = new_y
+        if self.is_animating:
+            self.smoke = False
+            self.animation_time += delta_time
+            
+            if self.animation_time >= self.frame_duration:
+                self.animation_time = 0.0
+                self.current_frame += 1
+                self.smoke = True
+                
+                if self.current_frame >= len(self.cigar_textures):
+                    self.is_animating = False 
+                    self.current_frame = 0  
+                    self.smoke = False
+                    
+                self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
+        if self.reload:
+            self.gun_reload_animation_timer += delta_time
+
+            if self.gun_reload_animation_timer >= self.gun_reload_animation_speed:
+                self.gun_reload_animation_timer = 0
+
+                if self.gun_reload_cur_text < len(self.gun_reload_textures):
+                    self.gun_sprite.texture = self.gun_reload_textures[
+                        self.gun_reload_cur_text
+                        ]
+                    self.gun_reload_cur_text += 1
+                    self.gun_sprite.angle = -10
+                else:
+                    self.reload = False
+                    self.gun_reload_cur_text = 0
+                    self.gun_reload_animation_timer = 0
+                    self.gun_sprite.texture = self.gun_textures[0]
+                    self.gun_sprite.angle = 0
+        elif self.is_shot:
+            self.gun_shot_animation_timer += delta_time
+            if self.gun_shot_animation_timer >= self.gun_shot_animation_speed:
+                if self.gun_shot_cur_text != len(self.gun_shot_textures):
+                    a = randint(0, 1)
+                    b = randint(2, 3)
+                    if self.gun_shot_cur_text == 0:
+                        self.flame = True
+                        self.flame_sprite.texture = self.flame_list_textures[a]
+                    elif self.gun_shot_cur_text == 1:
+                        self.flame = True
+                        self.flame_sprite.texture = self.flame_list_textures[b]
+                    else:
+                        self.flame = False
+                    self.gun_shot_animation_timer = 0
+                    self.gun_cur_text = (self.gun_shot_cur_text)
+                    self.gun_sprite.texture = self.gun_shot_textures[self.gun_shot_cur_text]
+                    self.gun_shot_cur_text += 1
+                else:
+                    self.is_shot = False
+                    self.gun_shot_cur_text = 0
+        elif self.idle_gun:
+            self.gun_animation_timer += delta_time
+            if self.gun_animation_timer >= self.gun_animation_speed:
+                self.gun_animation_timer = 0
+                self.gun_cur_text = (self.gun_cur_text + 1) % len(self.gun_textures)
+                self.gun_sprite.texture = self.gun_textures[self.gun_cur_text]
+        
+    def on_mouse_motion(self, x, y, dx, dy):
+        self.player_angle += dx * 0.003
         self.player_angle %= math.tau
+
+    def on_key_press(
+            self,
+            key,
+            modifiers
+    ):
+        if key == arcade.key.W:
+            self.move_forward = True
+
+        elif key == arcade.key.S:
+            self.move_back = True
+
+        elif key == arcade.key.A:
+            self.move_left = True
+
+        elif key == arcade.key.D:
+            self.move_right = True
+            
+        
+        elif key == arcade.key.R:
+            if not self.reload and not self.is_shot:
+                self.reload = True
+                self.gun_reload_cur_text = 0
+                self.gun_reload_animation_timer = 0
+                self.gun_animation_timer = 0
+                    
+        elif key == arcade.key.F:
+            if not self.is_animating:
+                self.is_animating = True
+                self.current_frame = 0
+                self.animation_time = 0.0
+                self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
+                    
+
+    def on_key_release(
+            self,
+            key,
+            modifiers
+    ):
+        if key == arcade.key.W:
+            self.move_forward = False
+
+        elif key == arcade.key.S:
+            self.move_back = False
+
+        elif key == arcade.key.A:
+            self.move_left = False
+
+        elif key == arcade.key.D:
+            self.move_right = False
+    
+    def on_mouse_press(self, x, y, button, modifiers):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            if not self.is_shot:
+                self.is_shot = True
 
 
 if __name__ == "__main__":
-    game = MainGame()
-    game.run()
+    Game()
+    arcade.run()
