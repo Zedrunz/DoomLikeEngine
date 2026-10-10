@@ -79,7 +79,19 @@ class Game(arcade.Window):
         self.gun_list.append(self.gun_sprite)
         self.idle_gun = True
         self.is_shot = False
-    
+        self.gun_reload_textures = [
+                                    arcade.load_texture('guns/mauser/re_1.png'),
+                                    arcade.load_texture("guns/mauser/re_2.png"),
+                                    arcade.load_texture("guns/mauser/re_3.png"),
+                                    arcade.load_texture("guns/mauser/re_4.png"),
+                                    arcade.load_texture("guns/mauser/re_5.png"),
+                                    arcade.load_texture("guns/mauser/re_6.png")
+                                ]
+        self.reload = False
+        self.gun_reload_cur_text = 0
+        self.gun_reload_animation_timer = 0
+        self.gun_reload_animation_speed = 0.3
+        self.reload_text_gun = 0
         self.smoke_list = arcade.SpriteList()
         self.smoke_list.append(self.smoke_sprite)
         self.flame_list = arcade.SpriteList()
@@ -311,7 +323,25 @@ class Game(arcade.Window):
                     self.smoke = False
                     
                 self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
-        if self.is_shot:
+        if self.reload:
+            self.gun_reload_animation_timer += delta_time
+
+            if self.gun_reload_animation_timer >= self.gun_reload_animation_speed:
+                self.gun_reload_animation_timer = 0
+
+                if self.gun_reload_cur_text < len(self.gun_reload_textures):
+                    self.gun_sprite.texture = self.gun_reload_textures[
+                        self.gun_reload_cur_text
+                        ]
+                    self.gun_reload_cur_text += 1
+                    self.gun_sprite.angle = -10
+                else:
+                    self.reload = False
+                    self.gun_reload_cur_text = 0
+                    self.gun_reload_animation_timer = 0
+                    self.gun_sprite.texture = self.gun_textures[0]
+                    self.gun_sprite.angle = 0
+        elif self.is_shot:
             self.gun_shot_animation_timer += delta_time
             if self.gun_shot_animation_timer >= self.gun_shot_animation_speed:
                 if self.gun_shot_cur_text != len(self.gun_shot_textures):
@@ -359,6 +389,15 @@ class Game(arcade.Window):
 
         elif key == arcade.key.D:
             self.move_right = True
+            
+        
+        elif key == arcade.key.R:
+            if not self.reload and not self.is_shot:
+                self.reload = True
+                self.gun_reload_cur_text = 0
+                self.gun_reload_animation_timer = 0
+                self.gun_animation_timer = 0
+                    
         elif key == arcade.key.F:
             if not self.is_animating:
                 self.is_animating = True
