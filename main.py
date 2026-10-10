@@ -26,9 +26,10 @@ class Game(arcade.Window):
             SCREEN_HEIGHT,
             "Raycaster"
         )
+        self.gun_shot_animation_timer = 0
         self.cigar_list = arcade.SpriteList()
         self.cigar_sprite = arcade.Sprite("textures/cigar_1.png", scale=5)
-        self.cigar_sprite.center_x = 800
+        self.cigar_sprite.center_x = 900
         self.cigar_sprite.center_y = 30
         self.cigar_sprite.angle = 30
         self.cigar_list.append(self.cigar_sprite)
@@ -37,9 +38,36 @@ class Game(arcade.Window):
             arcade.load_texture("textures/cigar_2.png"),
             arcade.load_texture("textures/cigar_3.png")
         ]
+        self.gun_list = arcade.SpriteList()
+        self.gun_sprite = arcade.Sprite(
+        "guns/mauser/idle_1-Photoroom.png", scale=0.3
+        )
+        self.gun_textures = [
+                    arcade.load_texture("guns/mauser/idle_1-Photoroom.png"),
+                    arcade.load_texture("guns/mauser/idle_2-Photoroom.png"),
+                    arcade.load_texture("guns/mauser/idle_3-Photoroom.png"),
+                    arcade.load_texture("guns/mauser/idle_4-Photoroom.png")
+                ]
+        self.gun_shot_textures = [
+                            arcade.load_texture("guns/mauser/shot_1-Photoroom.png"),
+                            arcade.load_texture("guns/mauser/shot_2-Photoroom.png"),
+                            arcade.load_texture("guns/mauser/shot_3-Photoroom.png"),
+                            arcade.load_texture("guns/mauser/shot_4-Photoroom.png")
+                        ]
+        self.gun_sprite.texture = self.gun_textures[0]
         self.smoke_sprite = arcade.Sprite("textures/smoke.png", scale=5)
+        self.gun_sprite.center_x = 640
+        self.gun_sprite.center_y = 300
+        self.gun_cur_text = 0
+        self.gun_shot_cur_text = 0
+        self.gun_animation_timer = 0
+        self.gun_animation_speed = 0.3
+        self.gun_shot_animation_speed = 0.2
         self.smoke_sprite.center_x = 800
         self.smoke_sprite.center_y = 30
+        self.gun_list.append(self.gun_sprite)
+        self.idle_gun = True
+        self.is_shot = False
     
         self.smoke_list = arcade.SpriteList()
         self.smoke_list.append(self.smoke_sprite)
@@ -78,6 +106,9 @@ class Game(arcade.Window):
         if self.smoke:
             self.smoke_list.draw()
         self.cigar_list.draw()
+    def gun_animation(self):
+        if self.idle_gun:
+            self.gun_list.draw()
 
     
     def cast_ray_dda(self, angle):
@@ -196,8 +227,12 @@ class Game(arcade.Window):
                 ),
                 color=color
             )
+    
+        self.gun_animation()
+        
         if self.is_animating:
             self.cigar_animation()
+
 
 
     def on_update(self, delta_time):
@@ -260,7 +295,24 @@ class Game(arcade.Window):
                     self.smoke = False
                     
                 self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
-
+        if self.is_shot:
+            self.gun_shot_animation_timer += delta_time
+            if self.gun_shot_animation_timer >= self.gun_shot_animation_speed:
+                if self.gun_shot_cur_text != len(self.gun_shot_textures):
+                    self.gun_shot_animation_timer = 0
+                    self.gun_cur_text = (self.gun_shot_cur_text)
+                    self.gun_sprite.texture = self.gun_shot_textures[self.gun_shot_cur_text]
+                    self.gun_shot_cur_text += 1
+                else:
+                    self.is_shot = False
+                    self.gun_shot_cur_text = 0
+        elif self.idle_gun:
+            self.gun_animation_timer += delta_time
+            if self.gun_animation_timer >= self.gun_animation_speed:
+                self.gun_animation_timer = 0
+                self.gun_cur_text = (self.gun_cur_text + 1) % len(self.gun_textures)
+                self.gun_sprite.texture = self.gun_textures[self.gun_cur_text]
+        
     def on_mouse_motion(self, x, y, dx, dy):
         self.player_angle += dx * 0.003
         self.player_angle %= math.tau
@@ -287,6 +339,7 @@ class Game(arcade.Window):
                 self.current_frame = 0
                 self.animation_time = 0.0
                 self.cigar_sprite.texture = self.cigar_textures[self.current_frame]
+                    
 
     def on_key_release(
             self,
@@ -304,6 +357,11 @@ class Game(arcade.Window):
 
         elif key == arcade.key.D:
             self.move_right = False
+    
+    def on_mouse_press(self, x, y, button, modifiers):
+        if button == arcade.MOUSE_BUTTON_LEFT:
+            if not self.is_shot:
+                self.is_shot = True
 
 
 if __name__ == "__main__":
