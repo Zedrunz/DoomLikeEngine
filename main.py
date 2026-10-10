@@ -85,7 +85,8 @@ class Game(arcade.Window):
                                     arcade.load_texture("guns/mauser/re_3.png"),
                                     arcade.load_texture("guns/mauser/re_4.png"),
                                     arcade.load_texture("guns/mauser/re_5.png"),
-                                    arcade.load_texture("guns/mauser/re_6.png")
+                                    arcade.load_texture("guns/mauser/re_6.png"),
+                                    arcade.load_texture("guns/mauser/re_1.png")
                                 ]
         self.reload = False
         self.gun_reload_cur_text = 0
